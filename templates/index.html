@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generate PowerPoint</title>
+</head>
+<body>
+    <h1>Generate a PowerPoint Presentation</h1>
+    <form method="post">
+        <label for="prompt">Enter your topic:</label><br>
+        <input type="text" id="prompt" name="prompt" placeholder="Enter a topic"><br><br/>
+        <!-- Add this field to your HTML form in the 'index.html' -->
+        <label for="num_slides">Number of Slides:</label><br/><br/>
+        <input type="number" id="num_slides" name="num_slides" min="1" max="10">
+
+        <input type="submit" value="Generate">
+
+        <hr/>
+        <iframe src="/output/10_presentation.pdf" width="800" height="600"></iframe>
+
+    </form>
+</body>
+</html>

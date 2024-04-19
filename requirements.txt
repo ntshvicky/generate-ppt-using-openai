@@ -1,0 +1,6 @@
+Flask 
+python-pptx
+openai
+tqdm
+beautifulsoup4
+python-dotenv
