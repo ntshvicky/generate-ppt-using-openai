@@ -1,0 +1,27 @@
+# Development files
+env/
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Generated files (built at runtime in /tmp)
+app/static/generated/
+generated_ppts/
+output/
+
+# Test / scratch
+test*.py
+app copy.py
+ashutosh.py
+ex2.py
+*.pptx
+*.mp4
+template1.pptx
+
+# Screenshots (large PNGs, not needed at runtime)
+screenshots/
+
+# Local configs
+.env

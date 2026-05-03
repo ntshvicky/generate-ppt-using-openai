@@ -185,14 +185,28 @@ def save(ppt_id):
 @login_required
 def download(ppt_id):
     ppt = Presentation.query.filter_by(id=ppt_id, user_id=current_user.id).first_or_404()
-    if not ppt.file_path:
+    if not ppt.file_path and not ppt.slides_json:
         flash('File not found. Please regenerate the presentation.', 'danger')
         return redirect(url_for('presentations.editor', ppt_id=ppt_id))
 
-    filepath = os.path.join(current_app.config['GENERATED_FOLDER'], ppt.file_path)
-    if not os.path.exists(filepath):
-        flash('File not found on disk. Please save again.', 'danger')
-        return redirect(url_for('presentations.editor', ppt_id=ppt_id))
+    generated_folder = current_app.config['GENERATED_FOLDER']
+    filepath = os.path.join(generated_folder, ppt.file_path) if ppt.file_path else None
+
+    # On Vercel (and after any cold start) /tmp is ephemeral — rebuild from slides_json.
+    if not filepath or not os.path.exists(filepath):
+        if not ppt.slides_json:
+            flash('File not found on disk. Please save again.', 'danger')
+            return redirect(url_for('presentations.editor', ppt_id=ppt_id))
+        try:
+            os.makedirs(generated_folder, exist_ok=True)
+            filepath, filename = build_pptx(
+                ppt.slides_json, ppt.template_id, generated_folder
+            )
+            ppt.file_path = filename
+            db.session.commit()
+        except Exception as e:
+            flash(f'Could not rebuild file: {str(e)[:120]}', 'danger')
+            return redirect(url_for('presentations.editor', ppt_id=ppt_id))
 
     safe_name = ppt.title[:40].replace(' ', '_').replace('/', '-') + '.pptx'
     ActivityLog.log(current_user.id, 'PPT_EXPORTED',
