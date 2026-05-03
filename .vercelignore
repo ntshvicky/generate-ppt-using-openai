@@ -1,27 +1,31 @@
-# Development files
+# Virtual envs
 env/
 venv/
 .venv/
+
+# Python cache
 __pycache__/
 *.pyc
 *.pyo
 
-# Generated files (built at runtime in /tmp)
-app/static/generated/
-generated_ppts/
-output/
-
-# Test / scratch
-test*.py
+# Old root-level standalone scripts — must be excluded so Vercel
+# doesn't auto-detect them instead of api/index.py
+app.py
+app2.py
 app copy.py
 ashutosh.py
 ex2.py
+test*.py
+
+# Generated files (built at runtime in /tmp on Vercel)
+app/static/generated/
+generated_ppts/
+output/
 *.pptx
 *.mp4
-template1.pptx
 
 # Screenshots (large PNGs, not needed at runtime)
 screenshots/
 
-# Local configs
+# Secrets
 .env
