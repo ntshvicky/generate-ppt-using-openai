@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+
+{% block breadcrumb %}
+<span class="text-gray-400 text-sm">Dashboard</span>
+{% endblock %}
+
+{% block content %}
+<!-- Welcome banner -->
+<div class="bg-gradient-to-r from-brand-700 via-brand-600 to-indigo-600 rounded-2xl p-6 mb-7 shadow-xl">
+  <div class="flex items-center justify-between">
+    <div>
+      <h2 class="text-2xl font-bold text-white">Good to see you, {{ current_user.name.split()[0] }}! 👋</h2>
+      <p class="text-brand-200 mt-1 text-sm">You're on the <span class="font-semibold text-white">{{ current_user.get_plan_name() }}</span> plan.
+        {% set rem = current_user.get_ppts_remaining() %}
+        {% if rem != -1 %}
+          <span class="text-brand-200">{{ rem }} presentation{{ 's' if rem != 1 }} remaining this month.</span>
+        {% else %}
+          Unlimited presentations available.
+        {% endif %}
+      </p>
+    </div>
+    <a href="{{ url_for('presentations.create') }}"
+       class="hidden md:flex items-center gap-2 bg-white text-brand-700 font-semibold text-sm px-5 py-2.5 rounded-xl hover:bg-brand-50 transition-colors shadow">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+      New Presentation
+    </a>
+  </div>
+</div>
+
+<!-- Stats -->
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-7">
+  <div class="stat-card">
+    <div class="stat-icon bg-brand-600/20 text-brand-400">
+      <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7"/></svg>
+    </div>
+    <div>
+      <p class="stat-label">Total Presentations</p>
+      <p class="stat-value">{{ total_ppts }}</p>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon bg-green-600/20 text-green-400">
+      <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+    </div>
+    <div>
+      <p class="stat-label">Ready to Export</p>
+      <p class="stat-value">{{ ready_ppts }}</p>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon bg-amber-600/20 text-amber-400">
+      <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+    </div>
+    <div>
+      <p class="stat-label">Generated This Month</p>
+      <p class="stat-value">{{ current_user.ppt_count_this_month }}</p>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon bg-purple-600/20 text-purple-400">
+      <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+    </div>
+    <div>
+      <p class="stat-label">AI Provider</p>
+      {% set ai = current_user.get_active_ai_setting() %}
+      <p class="stat-value text-base">{{ ai.provider.title() if ai else 'None' }}</p>
+    </div>
+  </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+  <!-- Recent presentations -->
+  <div class="lg:col-span-2 bg-gray-900 border border-gray-800 rounded-2xl p-6">
+    <div class="flex items-center justify-between mb-5">
+      <h3 class="font-semibold text-white text-lg">Recent Presentations</h3>
+      <a href="{{ url_for('presentations.list') }}" class="text-sm text-brand-400 hover:text-brand-300">View all →</a>
+    </div>
+    {% if recent_ppts %}
+    <div class="space-y-3">
+      {% for ppt in recent_ppts %}
+      <div class="flex items-center gap-4 p-3 rounded-xl hover:bg-gray-800 transition-colors group">
+        <div class="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0"
+             style="background: linear-gradient(135deg, #4f46e5, #7c3aed)">
+          📊
+        </div>
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-medium text-white truncate">{{ ppt.title }}</p>
+          <p class="text-xs text-gray-500">{{ ppt.num_slides }} slides · {{ ppt.template_id.replace('_',' ').title() }} · {{ ppt.created_at.strftime('%b %d') }}</p>
+        </div>
+        <span class="status-badge status-{{ ppt.status }}">{{ ppt.status }}</span>
+        <a href="{{ url_for('presentations.editor', ppt_id=ppt.id) }}"
+           class="opacity-0 group-hover:opacity-100 text-brand-400 hover:text-brand-300 text-xs font-medium transition-opacity">
+          Open →
+        </a>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center py-10">
+      <div class="text-4xl mb-3">🎯</div>
+      <p class="text-gray-400 text-sm">No presentations yet.</p>
+      <a href="{{ url_for('presentations.create') }}" class="btn-primary text-sm px-5 py-2 mt-4 inline-block">
+        Create your first one
+      </a>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Activity feed -->
+  <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6">
+    <div class="flex items-center justify-between mb-5">
+      <h3 class="font-semibold text-white text-lg">Recent Activity</h3>
+      <a href="{{ url_for('logs.index') }}" class="text-sm text-brand-400 hover:text-brand-300">All logs →</a>
+    </div>
+    {% if recent_logs %}
+    <div class="space-y-3">
+      {% for log in recent_logs %}
+      <div class="flex items-start gap-3">
+        <div class="w-2 h-2 rounded-full mt-1.5 shrink-0
+          {% if log.status == 'success' %}bg-green-400
+          {% elif log.status == 'error' %}bg-red-400
+          {% else %}bg-amber-400{% endif %}">
+        </div>
+        <div class="flex-1 min-w-0">
+          <p class="text-xs font-medium text-gray-300">{{ log.action.replace('_',' ').title() }}</p>
+          {% if log.details %}
+          <p class="text-xs text-gray-500 truncate">{{ log.details[:50] }}</p>
+          {% endif %}
+          <p class="text-xs text-gray-600 mt-0.5">{{ log.created_at.strftime('%b %d, %H:%M') }}</p>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-gray-500 text-sm text-center py-8">No activity yet.</p>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Quick actions -->
+{% set ai = current_user.get_active_ai_setting() %}
+{% if not ai %}
+<div class="mt-6 bg-amber-500/10 border border-amber-500/30 rounded-2xl p-5 flex items-center gap-4">
+  <div class="text-2xl">⚙️</div>
+  <div class="flex-1">
+    <p class="text-amber-300 font-semibold text-sm">Set up your AI provider to get started</p>
+    <p class="text-amber-400/70 text-xs mt-0.5">Add your OpenAI, Anthropic, or Gemini API key to start generating presentations.</p>
+  </div>
+  <a href="{{ url_for('settings.index') }}" class="btn-primary text-sm px-4 py-2 whitespace-nowrap">Configure AI →</a>
+</div>
+{% endif %}
+{% endblock %}

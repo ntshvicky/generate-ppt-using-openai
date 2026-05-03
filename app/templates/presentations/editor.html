@@ -1,0 +1,589 @@
+{% extends "base.html" %}
+{% block title %}Editor — {{ ppt.title }}{% endblock %}
+
+{% block breadcrumb %}
+<nav class="flex items-center gap-2 text-sm text-gray-400">
+  <a href="{{ url_for('presentations.list') }}" class="hover:text-white">Presentations</a>
+  <span>/</span>
+  <span class="text-white truncate max-w-xs">{{ ppt.title }}</span>
+</nav>
+{% endblock %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<style>
+  .slide-thumb { cursor: pointer; transition: all .15s; }
+  .slide-thumb.active { border-color: #6366f1 !important; }
+  .slide-thumb:hover:not(.active) { border-color: #4b5563; }
+  .slide-canvas { aspect-ratio: 16/9; position: relative; overflow: hidden; }
+  [contenteditable]:focus { outline: 2px dashed #6366f1; border-radius: 4px; }
+  [contenteditable]:hover { outline: 1px dashed #4b5563; border-radius: 4px; }
+  .chart-container { position: relative; }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Editor toolbar -->
+<div class="flex items-center justify-between mb-4 gap-3">
+  <div class="flex items-center gap-3">
+    <h2 class="text-lg font-bold text-white truncate max-w-sm">{{ ppt.title }}</h2>
+    <span class="status-badge status-{{ ppt.status }}">{{ ppt.status }}</span>
+  </div>
+  <div class="flex items-center gap-2 flex-wrap">
+    <!-- Template switcher -->
+    <select id="templateSwitcher" class="input-field text-xs py-2 pr-8">
+      {% for tmpl in templates %}
+      <option value="{{ tmpl.id }}" {% if tmpl.id == ppt.template_id %}selected{% endif %}>
+        {{ tmpl.name }}
+      </option>
+      {% endfor %}
+    </select>
+
+    <!-- Regenerate button (always visible) -->
+    <button onclick="document.getElementById('regenModal').classList.remove('hidden')"
+            class="bg-amber-600 hover:bg-amber-500 text-white px-4 py-2 text-sm rounded-xl font-medium transition-colors flex items-center gap-1.5">
+      🔄 Regenerate
+    </button>
+
+    <button onclick="savePresentation()" id="saveBtn"
+            class="btn-secondary px-4 py-2 text-sm">
+      💾 Save
+    </button>
+    {% if ppt.status == 'ready' and ppt.file_path %}
+    <a href="{{ url_for('presentations.download', ppt_id=ppt.id) }}"
+       class="btn-primary px-4 py-2 text-sm">
+      ⬇ Download .pptx
+    </a>
+    {% endif %}
+    {% set plan = current_user.plan %}
+    {% if plan and plan.slug != 'free' %}
+    <button onclick="exportVideo()" id="videoBtn"
+            class="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 text-sm rounded-xl font-medium transition-colors">
+      🎬 Export Video
+    </button>
+    {% else %}
+    <a href="{{ url_for('plans.index') }}"
+       class="bg-gray-700 text-gray-400 px-4 py-2 text-sm rounded-xl font-medium cursor-not-allowed" title="Upgrade to Pro for video export">
+      🎬 Video (Pro)
+    </a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="flex gap-5 h-[calc(100vh-200px)]">
+  <!-- Slide thumbnail panel -->
+  <div class="w-48 shrink-0 overflow-y-auto space-y-2 pr-1" id="thumbPanel">
+    {% for slide in slides %}
+    <div class="slide-thumb bg-gray-900 border-2 border-gray-800 rounded-xl overflow-hidden p-1"
+         data-slide="{{ loop.index0 }}"
+         onclick="selectSlide({{ loop.index0 }})">
+      <div class="aspect-video rounded-lg flex items-center justify-center text-xs text-center p-1 font-medium"
+           style="background: linear-gradient(135deg, {{ template.primary }}, {{ template.secondary }}); color: #fff; font-size: 9px; line-height: 1.2;">
+        <div class="px-1">
+          <div style="font-weight:700; margin-bottom:2px; font-size:8px; opacity:.8">{{ loop.index }}</div>
+          {{ slide.title[:30] if slide.title else 'Slide ' + loop.index|string }}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Main canvas -->
+  <div class="flex-1 flex flex-col">
+    <div class="bg-gray-800 rounded-2xl border border-gray-700 overflow-hidden flex-1 flex items-center justify-center p-4">
+      <div class="slide-canvas w-full rounded-xl shadow-2xl" id="slideCanvas"
+           style="background: {{ template.background }}; max-width: 960px;">
+        <!-- Slide content rendered by JS -->
+      </div>
+    </div>
+    <!-- Speaker notes -->
+    <div class="mt-3 bg-gray-900 border border-gray-800 rounded-xl p-4">
+      <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Speaker Notes</label>
+      <div id="speakerNotes" contenteditable="true"
+           class="text-sm text-gray-300 mt-2 min-h-12 focus:outline-none"
+           placeholder="Add speaker notes…"></div>
+    </div>
+  </div>
+
+  <!-- Properties panel -->
+  <div class="w-56 shrink-0 bg-gray-900 border border-gray-800 rounded-2xl p-4 overflow-y-auto">
+    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Slide Properties</p>
+
+    <div class="space-y-4">
+      <div>
+        <label class="text-xs text-gray-500 mb-1 block">Slide Type</label>
+        <select id="propSlideType" class="input-field w-full text-xs py-2" onchange="updateSlideProp('slide_type', this.value)">
+          <option value="title">Title</option>
+          <option value="content">Content</option>
+          <option value="chart">Chart</option>
+          <option value="two_col">Two Column</option>
+          <option value="divider">Section Divider</option>
+          <option value="conclusion">Conclusion</option>
+        </select>
+      </div>
+
+      <div id="chartPanel" class="hidden">
+        <label class="text-xs text-gray-500 mb-1 block">Chart Type</label>
+        <select id="propChartType" class="input-field w-full text-xs py-2" onchange="updateSlideProp('chart_type', this.value)">
+          <option value="bar">Bar Chart</option>
+          <option value="column">Column Chart</option>
+          <option value="line">Line Chart</option>
+          <option value="pie">Pie Chart</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="text-xs text-gray-500 mb-1 block">Slide #</label>
+        <p id="propSlideNum" class="text-sm text-white font-medium"></p>
+      </div>
+
+      <div class="border-t border-gray-800 pt-4">
+        <p class="text-xs text-gray-500 mb-2">Quick Actions</p>
+        <button onclick="addBulletPoint()" class="btn-secondary w-full text-xs py-2 mb-2">+ Add Bullet</button>
+        <button onclick="clearSlide()" class="text-xs text-red-400 hover:text-red-300 w-full py-1.5 hover:bg-gray-800 rounded-lg transition-colors">Clear Slide</button>
+      </div>
+
+      <div class="border-t border-gray-800 pt-4">
+        <p class="text-xs text-gray-500 mb-2">Template</p>
+        <div class="h-8 rounded-lg" id="templateSwatch"
+             style="background: linear-gradient(135deg, {{ template.primary }}, {{ template.secondary }})"></div>
+        <p class="text-xs text-gray-400 mt-1.5">{{ template.name }}</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Save status toast -->
+<div id="saveToast" class="fixed bottom-6 right-6 bg-gray-800 border border-gray-700 text-white text-sm px-5 py-3 rounded-xl shadow-2xl hidden items-center gap-2">
+  <span id="toastMsg"></span>
+</div>
+
+<!-- ── Regenerate Modal ───────────────────────────────────────────── -->
+<div id="regenModal" class="hidden fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+  <div class="bg-gray-900 border border-gray-700 rounded-2xl p-7 max-w-md w-full mx-4 shadow-2xl">
+    <div class="flex items-center gap-3 mb-5">
+      <div class="w-10 h-10 bg-amber-600/20 rounded-xl flex items-center justify-center text-xl">🔄</div>
+      <div>
+        <h3 class="text-lg font-bold text-white">Regenerate Presentation</h3>
+        <p class="text-xs text-gray-400">Re-run AI on the same topic with fresh content</p>
+      </div>
+    </div>
+
+    <form method="POST" action="{{ url_for('presentations.regenerate', ppt_id=ppt.id) }}" id="regenForm">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+      <input type="hidden" name="template_id" id="regenTemplateId" value="{{ ppt.template_id }}"/>
+
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-1.5">Topic / Description</label>
+          <textarea name="topic" rows="3" required
+                    class="input-field w-full text-sm resize-none"
+                    placeholder="Describe what you want…">{{ ppt.topic or ppt.title }}</textarea>
+          <p class="text-xs text-gray-500 mt-1">Edit to refine — or keep the same topic for a fresh take.</p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-300 mb-1.5">Slides</label>
+            {% set plan = current_user.plan %}
+            {% set max_s = plan.max_slides if plan else 5 %}
+            <input type="number" name="num_slides" value="{{ ppt.num_slides }}"
+                   min="3" max="{{ max_s }}" class="input-field w-full text-sm"/>
+            <p class="text-xs text-gray-500 mt-1">Max {{ max_s }}</p>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-300 mb-1.5">Category</label>
+            <select name="category" class="input-field w-full text-sm">
+              {% for cat in ['Business','Technology','Finance','Marketing','Sales','Healthcare','Education','Startup','Research','General'] %}
+              <option value="{{ cat }}">{{ cat }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <!-- Active AI provider info -->
+        {% set ai = current_user.get_active_ai_setting() %}
+        {% if ai %}
+        <div class="flex items-center gap-2 p-3 bg-green-500/10 border border-green-500/20 rounded-xl text-xs">
+          <span class="text-green-400">✓</span>
+          <span class="text-gray-300">Using <strong class="text-white">{{ ai.provider.title() }}</strong> — <span class="text-gray-400">{{ ai.model }}</span></span>
+          <a href="{{ url_for('settings.index') }}" class="ml-auto text-brand-400 hover:underline">Change</a>
+        </div>
+        {% else %}
+        <div class="flex items-center gap-2 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs text-amber-300">
+          ⚠ No active AI provider.
+          <a href="{{ url_for('settings.index') }}" class="ml-auto text-brand-400 hover:underline">Configure →</a>
+        </div>
+        {% endif %}
+      </div>
+
+      <div class="flex items-center gap-3 mt-6">
+        <button type="submit" id="regenSubmitBtn"
+                class="flex-1 btn-primary py-3 font-semibold"
+                {% if not ai %}disabled{% endif %}>
+          <span id="regenBtnText">⚡ Regenerate Now</span>
+        </button>
+        <button type="button" onclick="document.getElementById('regenModal').classList.add('hidden')"
+                class="btn-secondary px-5 py-3">
+          Cancel
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Video export progress modal -->
+<div id="videoModal" class="hidden fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+  <div class="bg-gray-900 border border-gray-700 rounded-2xl p-8 max-w-sm w-full text-center">
+    <div class="text-4xl mb-4 animate-spin">⏳</div>
+    <h3 class="text-lg font-bold text-white mb-2">Exporting Video</h3>
+    <p id="videoStatus" class="text-sm text-gray-400">Capturing slides…</p>
+    <div class="mt-4 bg-gray-800 rounded-full h-2">
+      <div id="videoProgress" class="bg-brand-500 h-2 rounded-full transition-all" style="width:0%"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const SLIDES = {{ slides | tojson }};
+const TEMPLATE = {{ template | tojson }};
+const PPT_ID = {{ ppt.id }};
+const CSRF_TOKEN = "{{ csrf_token() }}";
+
+let currentSlideIdx = 0;
+let charts = {};
+
+// ── Rendering ──────────────────────────────────────────────────────────
+function renderSlide(idx) {
+  const slide = SLIDES[idx];
+  const canvas = document.getElementById('slideCanvas');
+  const bg = TEMPLATE.background || '#ffffff';
+  const primary = TEMPLATE.primary || '#1565C0';
+  const secondary = TEMPLATE.secondary || '#42A5F5';
+  const accent = TEMPLATE.accent || '#FFC107';
+  const titleColor = TEMPLATE.title_color || primary;
+  const textColor = TEMPLATE.text_color || '#212121';
+  const subtitleColor = TEMPLATE.subtitle_color || '#546E7A';
+
+  // Destroy existing charts
+  Object.values(charts).forEach(c => c.destroy());
+  charts = {};
+
+  const type = slide.slide_type || 'content';
+  let html = '';
+
+  if (type === 'title') {
+    html = `
+      <div style="background:${bg}; height:100%; position:relative; display:flex; flex-direction:column; justify-content:center; padding: 5% 7%;">
+        <div style="position:absolute;top:0;left:0;right:0;height:3%;background:${primary}"></div>
+        <div style="position:absolute;bottom:0;left:0;right:0;height:3%;background:${accent}"></div>
+        <div style="position:absolute;top:3%;left:0;bottom:3%;width:1.2%;background:${secondary}"></div>
+        <h1 contenteditable="true" data-field="title"
+            style="color:${titleColor};font-size:clamp(24px,4vw,52px);font-weight:800;line-height:1.15;margin-bottom:4%;font-family:Calibri,sans-serif;"
+            >${slide.title || 'Presentation Title'}</h1>
+        ${slide.subtitle ? `<p contenteditable="true" data-field="subtitle"
+            style="color:${subtitleColor};font-size:clamp(14px,1.8vw,26px);font-family:Calibri,sans-serif;"
+            >${slide.subtitle}</p>` : ''}
+      </div>`;
+
+  } else if (type === 'content' || type === 'conclusion') {
+    const bullets = slide.bullet_points || [];
+    const bulletHtml = bullets.map((b, i) =>
+      `<div class="bullet-item" style="display:flex;align-items:flex-start;gap:8px;margin-bottom:2%;font-family:Calibri,sans-serif;">
+        <span style="color:${accent};font-size:clamp(12px,1.2vw,18px);margin-top:2px;flex-shrink:0;">${type==='conclusion'?'✓':'▸'}</span>
+        <span contenteditable="true" data-field="bullet" data-index="${i}"
+              style="color:${textColor};font-size:clamp(11px,1.3vw,18px);line-height:1.4;">${b}</span>
+       </div>`
+    ).join('');
+    html = `
+      <div style="background:${bg};height:100%;position:relative;display:flex;flex-direction:column;font-family:Calibri,sans-serif;">
+        <div style="background:${primary};padding:2% 4%;flex-shrink:0;">
+          <h2 contenteditable="true" data-field="title"
+              style="color:#fff;font-size:clamp(16px,2.2vw,30px);font-weight:700;margin:0;"
+              >${slide.title || ''}</h2>
+        </div>
+        <div style="height:3px;background:${accent};flex-shrink:0;"></div>
+        <div style="padding:3% 5%;flex:1;overflow:hidden;">${bulletHtml}</div>
+      </div>`;
+
+  } else if (type === 'chart') {
+    const bullets = (slide.bullet_points || []).slice(0, 4);
+    const hasInsights = bullets.length > 0;
+    html = `
+      <div style="background:${bg};height:100%;position:relative;display:flex;flex-direction:column;font-family:Calibri,sans-serif;">
+        <div style="background:${primary};padding:2% 4%;flex-shrink:0;">
+          <h2 contenteditable="true" data-field="title"
+              style="color:#fff;font-size:clamp(16px,2.2vw,30px);font-weight:700;margin:0;"
+              >${slide.title || ''}</h2>
+        </div>
+        <div style="height:3px;background:${accent};flex-shrink:0;"></div>
+        <div style="display:flex;flex:1;overflow:hidden;padding:2% 3%;gap:3%;">
+          <div class="chart-container" style="flex:${hasInsights?'0 0 65%':'1'};position:relative;">
+            <canvas id="chartCanvas_${idx}" style="max-height:280px;"></canvas>
+          </div>
+          ${hasInsights ? `<div style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:8px;">
+            ${bullets.map((b,i)=>`<div style="display:flex;align-items:flex-start;gap:6px;">
+              <span style="color:${accent};flex-shrink:0;">•</span>
+              <span contenteditable="true" data-field="bullet" data-index="${i}"
+                    style="color:${textColor};font-size:clamp(10px,1.1vw,14px);line-height:1.4;">${b}</span>
+            </div>`).join('')}
+          </div>` : ''}
+        </div>
+      </div>`;
+
+  } else if (type === 'two_col') {
+    const bullets = slide.bullet_points || [];
+    const mid = Math.ceil(bullets.length / 2);
+    const left = bullets.slice(0, mid);
+    const right = bullets.slice(mid);
+    html = `
+      <div style="background:${bg};height:100%;display:flex;flex-direction:column;font-family:Calibri,sans-serif;">
+        <div style="background:${primary};padding:2% 4%;">
+          <h2 contenteditable="true" data-field="title"
+              style="color:#fff;font-size:clamp(16px,2.2vw,30px);font-weight:700;margin:0;">${slide.title||''}</h2>
+        </div>
+        <div style="height:3px;background:${accent}"></div>
+        <div style="display:flex;flex:1;padding:3% 4%;gap:0;overflow:hidden;">
+          <div style="flex:1;padding-right:3%;border-right:2px solid ${secondary};">
+            ${left.map((b,i)=>`<div style="display:flex;align-items:flex-start;gap:6px;margin-bottom:8px;">
+              <span style="color:${accent};flex-shrink:0;">▸</span>
+              <span contenteditable="true" data-field="bullet" data-index="${i}"
+                    style="color:${textColor};font-size:clamp(10px,1.2vw,16px);line-height:1.4;">${b}</span>
+            </div>`).join('')}
+          </div>
+          <div style="flex:1;padding-left:3%;">
+            ${right.map((b,i)=>`<div style="display:flex;align-items:flex-start;gap:6px;margin-bottom:8px;">
+              <span style="color:${accent};flex-shrink:0;">▸</span>
+              <span contenteditable="true" data-field="bullet" data-index="${i+mid}"
+                    style="color:${textColor};font-size:clamp(10px,1.2vw,16px);line-height:1.4;">${b}</span>
+            </div>`).join('')}
+          </div>
+        </div>
+      </div>`;
+
+  } else if (type === 'divider') {
+    html = `
+      <div style="background:${primary};height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:Calibri,sans-serif;position:relative;">
+        <div style="position:absolute;top:50%;left:0;right:0;height:2px;background:${accent};transform:translateY(-24px)"></div>
+        <h2 contenteditable="true" data-field="title"
+            style="color:#fff;font-size:clamp(22px,3.5vw,46px);font-weight:800;text-align:center;padding:0 10%;z-index:1;margin-bottom:3%;"
+            >${slide.title||''}</h2>
+        ${slide.subtitle?`<p contenteditable="true" data-field="subtitle"
+            style="color:${accent};font-size:clamp(14px,1.6vw,22px);text-align:center;z-index:1;"
+            >${slide.subtitle}</p>`:''}
+      </div>`;
+  }
+
+  canvas.innerHTML = html;
+
+  // Wire up Chart.js for chart slides
+  if (type === 'chart' && slide.chart_data) {
+    const cd = slide.chart_data;
+    const chartType = slide.chart_type || 'bar';
+    const ctx = document.getElementById(`chartCanvas_${idx}`);
+    if (ctx) {
+      const isHorizontal = chartType === 'bar';
+      charts[idx] = new Chart(ctx, {
+        type: isHorizontal ? 'bar' : (chartType === 'pie' ? 'pie' : chartType === 'line' ? 'line' : 'bar'),
+        data: {
+          labels: cd.labels || [],
+          datasets: [{
+            label: cd.series_name || 'Data',
+            data: cd.values || [],
+            backgroundColor: [primary, secondary, accent, '#10b981','#f59e0b','#ef4444','#8b5cf6'].map(c => c+'cc'),
+            borderColor: [primary, secondary, accent, '#10b981','#f59e0b','#ef4444','#8b5cf6'],
+            borderWidth: 2,
+            borderRadius: 6,
+          }]
+        },
+        options: {
+          indexAxis: isHorizontal ? 'y' : 'x',
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: chartType === 'pie' ? {} : {
+            x: { grid: { color: '#374151' }, ticks: { color: '#9ca3af', font: { size: 11 } } },
+            y: { grid: { color: '#374151' }, ticks: { color: '#9ca3af', font: { size: 11 } } },
+          }
+        }
+      });
+    }
+  }
+
+  // Sync properties panel
+  document.getElementById('propSlideType').value = slide.slide_type || 'content';
+  document.getElementById('propSlideNum').textContent = `Slide ${idx + 1} of ${SLIDES.length}`;
+  document.getElementById('speakerNotes').textContent = slide.speaker_notes || '';
+  const chartPanel = document.getElementById('chartPanel');
+  chartPanel.classList.toggle('hidden', type !== 'chart');
+  if (type === 'chart') document.getElementById('propChartType').value = slide.chart_type || 'bar';
+
+  // Update thumbnails
+  document.querySelectorAll('.slide-thumb').forEach((el, i) => {
+    el.classList.toggle('active', i === idx);
+  });
+
+  // Attach inline edit listeners
+  canvas.querySelectorAll('[contenteditable]').forEach(el => {
+    el.addEventListener('input', () => syncEditableToModel(el, idx));
+    el.addEventListener('blur',  () => syncEditableToModel(el, idx));
+  });
+
+  document.getElementById('speakerNotes').addEventListener('input', () => {
+    SLIDES[currentSlideIdx].speaker_notes = document.getElementById('speakerNotes').textContent;
+  });
+}
+
+function syncEditableToModel(el, idx) {
+  const field = el.dataset.field;
+  const slide = SLIDES[idx];
+  if (field === 'title')    slide.title    = el.textContent;
+  if (field === 'subtitle') slide.subtitle = el.textContent;
+  if (field === 'bullet') {
+    const i = parseInt(el.dataset.index);
+    if (!slide.bullet_points) slide.bullet_points = [];
+    slide.bullet_points[i] = el.textContent;
+  }
+}
+
+function selectSlide(idx) {
+  currentSlideIdx = idx;
+  renderSlide(idx);
+}
+
+function updateSlideProp(field, value) {
+  SLIDES[currentSlideIdx][field] = value;
+  renderSlide(currentSlideIdx);
+}
+
+function addBulletPoint() {
+  const slide = SLIDES[currentSlideIdx];
+  if (!slide.bullet_points) slide.bullet_points = [];
+  slide.bullet_points.push('New point — click to edit');
+  renderSlide(currentSlideIdx);
+}
+
+function clearSlide() {
+  if (!confirm('Clear this slide content?')) return;
+  SLIDES[currentSlideIdx].bullet_points = [];
+  SLIDES[currentSlideIdx].title = '';
+  renderSlide(currentSlideIdx);
+}
+
+// ── Save ────────────────────────────────────────────────────────────────
+async function savePresentation() {
+  const btn = document.getElementById('saveBtn');
+  btn.textContent = '⏳ Saving…';
+  btn.disabled = true;
+  const templateId = document.getElementById('templateSwitcher').value;
+
+  // Update template swatch
+  const selected = {{ templates | tojson }}.find(t => t.id === templateId);
+  if (selected) {
+    document.getElementById('templateSwatch').style.background =
+      `linear-gradient(135deg, ${selected.primary}, ${selected.secondary})`;
+  }
+
+  try {
+    const res = await fetch(`/presentations/${PPT_ID}/save`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
+      body: JSON.stringify({ slides: SLIDES, template_id: templateId })
+    });
+    const data = await res.json();
+    showToast(data.success ? '✅ Saved & rebuilt successfully!' : `❌ ${data.error}`, data.success);
+    if (data.success) {
+      // Show download button
+      document.querySelectorAll('[href*="download"]').forEach(el => el.classList.remove('hidden'));
+    }
+  } catch(e) {
+    showToast('❌ Save failed: ' + e.message, false);
+  }
+  btn.textContent = '💾 Save';
+  btn.disabled = false;
+}
+
+// ── Video Export ────────────────────────────────────────────────────────
+async function exportVideo() {
+  const modal = document.getElementById('videoModal');
+  const status = document.getElementById('videoStatus');
+  const progress = document.getElementById('videoProgress');
+  modal.classList.remove('hidden');
+
+  const images = [];
+  for (let i = 0; i < SLIDES.length; i++) {
+    renderSlide(i);
+    status.textContent = `Capturing slide ${i+1} of ${SLIDES.length}…`;
+    progress.style.width = `${Math.round((i / SLIDES.length) * 60)}%`;
+    await new Promise(r => setTimeout(r, 300));
+    const canvas = document.getElementById('slideCanvas');
+    const imgData = await html2canvas(canvas, { scale: 1.5, useCORS: true, backgroundColor: null });
+    images.push(imgData.toDataURL('image/jpeg', 0.85));
+  }
+
+  renderSlide(currentSlideIdx);
+  status.textContent = 'Encoding video on server…';
+  progress.style.width = '80%';
+
+  try {
+    const res = await fetch(`/presentations/${PPT_ID}/export-video`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
+      body: JSON.stringify({ slide_images: images })
+    });
+    const data = await res.json();
+    progress.style.width = '100%';
+    status.textContent = data.success ? 'Done! Downloading…' : `Error: ${data.error}`;
+    if (data.success) {
+      setTimeout(() => { modal.classList.add('hidden'); window.location = data.video_url; }, 1000);
+    } else {
+      setTimeout(() => modal.classList.add('hidden'), 3000);
+    }
+  } catch(e) {
+    status.textContent = 'Export failed: ' + e.message;
+    setTimeout(() => modal.classList.add('hidden'), 3000);
+  }
+}
+
+function showToast(msg, success = true) {
+  const t = document.getElementById('saveToast');
+  document.getElementById('toastMsg').textContent = msg;
+  t.style.borderColor = success ? '#22c55e' : '#ef4444';
+  t.classList.remove('hidden');
+  t.classList.add('flex');
+  setTimeout(() => { t.classList.add('hidden'); t.classList.remove('flex'); }, 3500);
+}
+
+// Template switcher — also sync value into regenerate modal
+document.getElementById('templateSwitcher').addEventListener('change', function() {
+  const allTemplates = {{ templates | tojson }};
+  const selected = allTemplates.find(t => t.id === this.value);
+  if (selected) {
+    Object.assign(TEMPLATE, selected);
+    renderSlide(currentSlideIdx);
+  }
+  document.getElementById('regenTemplateId').value = this.value;
+});
+
+// Regenerate form — show spinner while submitting
+document.getElementById('regenForm').addEventListener('submit', function() {
+  const btn  = document.getElementById('regenSubmitBtn');
+  const text = document.getElementById('regenBtnText');
+  btn.disabled = true;
+  text.innerHTML = '<span class="animate-pulse">⏳ Generating with AI…</span>';
+  // Sync current template to hidden field
+  document.getElementById('regenTemplateId').value =
+    document.getElementById('templateSwitcher').value;
+});
+
+// Close regen modal on backdrop click
+document.getElementById('regenModal').addEventListener('click', function(e) {
+  if (e.target === this) this.classList.add('hidden');
+});
+
+// Init
+renderSlide(0);
+</script>
+{% endblock %}

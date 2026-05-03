@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>{% block title %}SlideAI{% endblock %} — AI Presentation Maker</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50:  '#eef2ff', 100: '#e0e7ff', 200: '#c7d2fe',
+              300: '#a5b4fc', 400: '#818cf8', 500: '#6366f1',
+              600: '#4f46e5', 700: '#4338ca', 800: '#3730a3', 900: '#312e81',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}"/>
+  {% block head %}{% endblock %}
+</head>
+<body class="h-full bg-gray-950 text-gray-100 font-inter">
+
+{% if current_user.is_authenticated %}
+<!-- Sidebar + Layout -->
+<div class="flex h-full min-h-screen">
+  <!-- Sidebar -->
+  <aside class="w-64 bg-gray-900 border-r border-gray-800 flex flex-col fixed inset-y-0 z-40">
+    <!-- Logo -->
+    <div class="flex items-center gap-3 px-5 py-5 border-b border-gray-800">
+      <div class="w-9 h-9 bg-brand-600 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow">S</div>
+      <span class="text-white font-bold text-xl tracking-tight">SlideAI</span>
+    </div>
+
+    <!-- Nav -->
+    <nav class="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+      <a href="{{ url_for('dashboard.index') }}"
+         class="nav-link {% if request.blueprint == 'dashboard' %}active{% endif %}">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+        Dashboard
+      </a>
+      <a href="{{ url_for('presentations.list') }}"
+         class="nav-link {% if request.blueprint == 'presentations' and request.endpoint != 'presentations.create' %}active{% endif %}">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7"/></svg>
+        My Presentations
+      </a>
+      <a href="{{ url_for('presentations.create') }}"
+         class="nav-link {% if request.endpoint == 'presentations.create' %}active{% endif %}">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+        Create New
+      </a>
+
+      <div class="pt-4 pb-1 px-3">
+        <p class="text-xs font-semibold text-gray-500 uppercase tracking-widest">Account</p>
+      </div>
+
+      <a href="{{ url_for('plans.index') }}"
+         class="nav-link {% if request.blueprint == 'plans' %}active{% endif %}">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/></svg>
+        Plans & Billing
+      </a>
+      <a href="{{ url_for('settings.index') }}"
+         class="nav-link {% if request.blueprint == 'settings' %}active{% endif %}">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        AI Settings
+      </a>
+      <a href="{{ url_for('logs.index') }}"
+         class="nav-link {% if request.blueprint == 'logs' %}active{% endif %}">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+        Activity Logs
+      </a>
+    </nav>
+
+    <!-- User profile -->
+    <div class="px-3 py-4 border-t border-gray-800">
+      <div class="flex items-center gap-3 px-3 py-2 rounded-xl bg-gray-800 mb-2">
+        <div class="w-8 h-8 rounded-full bg-brand-600 flex items-center justify-center text-white font-bold text-sm shrink-0">
+          {{ current_user.name[0].upper() }}
+        </div>
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-medium text-white truncate">{{ current_user.name }}</p>
+          <p class="text-xs text-gray-400 truncate">{{ current_user.get_plan_name() }} Plan</p>
+        </div>
+      </div>
+      <a href="{{ url_for('auth.logout') }}"
+         class="flex items-center gap-2 px-3 py-2 text-sm text-gray-400 hover:text-red-400 hover:bg-gray-800 rounded-lg transition-colors">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+        Sign Out
+      </a>
+    </div>
+  </aside>
+
+  <!-- Main content -->
+  <div class="flex-1 ml-64 flex flex-col min-h-screen">
+    <!-- Top bar -->
+    <header class="bg-gray-900 border-b border-gray-800 px-6 py-3 flex items-center justify-between sticky top-0 z-30">
+      <div class="flex-1">
+        {% block breadcrumb %}{% endblock %}
+      </div>
+      <div class="flex items-center gap-4">
+        {% set remaining = current_user.get_ppts_remaining() %}
+        {% if remaining != -1 %}
+        <div class="flex items-center gap-2 text-sm">
+          <div class="w-2 h-2 rounded-full {% if remaining > 1 %}bg-green-400{% else %}bg-amber-400{% endif %}"></div>
+          <span class="text-gray-400">
+            <span class="text-white font-medium">{{ remaining }}</span> PPT{{ 's' if remaining != 1 }} left this month
+          </span>
+        </div>
+        {% else %}
+        <div class="flex items-center gap-2 text-sm">
+          <div class="w-2 h-2 rounded-full bg-brand-400"></div>
+          <span class="text-gray-400">Unlimited PPTs</span>
+        </div>
+        {% endif %}
+        <a href="{{ url_for('presentations.create') }}"
+           class="btn-primary text-sm px-4 py-2">
+          + New Presentation
+        </a>
+      </div>
+    </header>
+
+    <!-- Flash messages -->
+    <div class="px-6 pt-4 space-y-2">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, message in messages %}
+          <div class="flash-{{ category }} flex items-center gap-3 px-4 py-3 rounded-xl text-sm">
+            <span>{{ message }}</span>
+            <button onclick="this.parentElement.remove()" class="ml-auto text-current opacity-70 hover:opacity-100">✕</button>
+          </div>
+        {% endfor %}
+      {% endwith %}
+    </div>
+
+    <!-- Page content -->
+    <main class="flex-1 px-6 py-6">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</div>
+
+{% else %}
+<!-- Unauthenticated layout -->
+<main class="min-h-screen flex items-center justify-center bg-gray-950">
+  {% block auth_content %}{% endblock %}
+</main>
+{% endif %}
+
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

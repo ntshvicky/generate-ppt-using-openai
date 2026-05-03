@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}Activity Logs{% endblock %}
+
+{% block breadcrumb %}
+<nav class="flex items-center gap-2 text-sm text-gray-400">
+  <a href="{{ url_for('dashboard.index') }}" class="hover:text-white">Dashboard</a>
+  <span>/</span>
+  <span class="text-white">Activity Logs</span>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h2 class="text-2xl font-bold text-white">Activity Logs</h2>
+    <p class="text-gray-400 text-sm mt-1">Full audit trail of all actions on your account.</p>
+  </div>
+  <div class="text-sm text-gray-400">
+    {{ logs.total }} total entries
+  </div>
+</div>
+
+<!-- Filters -->
+<form method="GET" class="flex items-center gap-3 mb-6 flex-wrap">
+  <select name="status" class="input-field text-sm py-2 pr-8">
+    <option value="">All statuses</option>
+    <option value="success" {% if status_filter == 'success' %}selected{% endif %}>Success</option>
+    <option value="error"   {% if status_filter == 'error' %}selected{% endif %}>Error</option>
+    <option value="warning" {% if status_filter == 'warning' %}selected{% endif %}>Warning</option>
+  </select>
+  <select name="action" class="input-field text-sm py-2 pr-8">
+    <option value="">All actions</option>
+    {% for a in action_types %}
+    <option value="{{ a }}" {% if action_filter == a %}selected{% endif %}>{{ a.replace('_',' ').title() }}</option>
+    {% endfor %}
+  </select>
+  <button type="submit" class="btn-secondary px-4 py-2 text-sm">Filter</button>
+  {% if status_filter or action_filter %}
+  <a href="{{ url_for('logs.index') }}" class="text-sm text-gray-400 hover:text-white px-3 py-2">Clear</a>
+  {% endif %}
+</form>
+
+<!-- Log table -->
+<div class="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
+  {% if logs.items %}
+  <table class="w-full text-sm">
+    <thead>
+      <tr class="border-b border-gray-800">
+        <th class="text-left px-5 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wider">Status</th>
+        <th class="text-left px-5 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wider">Action</th>
+        <th class="text-left px-5 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wider hidden md:table-cell">Details</th>
+        <th class="text-left px-5 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wider hidden lg:table-cell">IP</th>
+        <th class="text-left px-5 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wider">Time</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-800">
+      {% for log in logs.items %}
+      <tr class="hover:bg-gray-800/50 transition-colors">
+        <td class="px-5 py-3.5">
+          <span class="flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full shrink-0
+              {% if log.status == 'success' %}bg-green-400
+              {% elif log.status == 'error' %}bg-red-400
+              {% else %}bg-amber-400{% endif %}">
+            </span>
+            <span class="text-xs capitalize
+              {% if log.status == 'success' %}text-green-400
+              {% elif log.status == 'error' %}text-red-400
+              {% else %}text-amber-400{% endif %}">
+              {{ log.status }}
+            </span>
+          </span>
+        </td>
+        <td class="px-5 py-3.5">
+          <span class="text-white font-medium">{{ log.action.replace('_',' ').title() }}</span>
+        </td>
+        <td class="px-5 py-3.5 hidden md:table-cell">
+          <span class="text-gray-400 text-xs">{{ log.details[:60] if log.details else '—' }}{% if log.details and log.details|length > 60 %}…{% endif %}</span>
+        </td>
+        <td class="px-5 py-3.5 hidden lg:table-cell">
+          <span class="text-gray-500 text-xs font-mono">{{ log.ip_address or '—' }}</span>
+        </td>
+        <td class="px-5 py-3.5 text-gray-400 text-xs whitespace-nowrap">
+          {{ log.created_at.strftime('%b %d, %Y %H:%M') }}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <!-- Pagination -->
+  {% if logs.pages > 1 %}
+  <div class="flex items-center justify-between px-5 py-4 border-t border-gray-800">
+    <p class="text-xs text-gray-500">Showing {{ logs.items|length }} of {{ logs.total }}</p>
+    <div class="flex items-center gap-2">
+      {% if logs.has_prev %}
+      <a href="{{ url_for('logs.index', page=logs.prev_num, status=status_filter, action=action_filter) }}"
+         class="btn-secondary text-xs px-3 py-1.5">← Prev</a>
+      {% endif %}
+      <span class="text-xs text-gray-400">{{ logs.page }} / {{ logs.pages }}</span>
+      {% if logs.has_next %}
+      <a href="{{ url_for('logs.index', page=logs.next_num, status=status_filter, action=action_filter) }}"
+         class="btn-secondary text-xs px-3 py-1.5">Next →</a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% else %}
+  <div class="text-center py-16">
+    <div class="text-5xl mb-4">📋</div>
+    <p class="text-gray-400 text-sm">No log entries found.</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

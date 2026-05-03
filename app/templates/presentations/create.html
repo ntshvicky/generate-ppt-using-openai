@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+{% block title %}Create Presentation{% endblock %}
+
+{% block breadcrumb %}
+<nav class="flex items-center gap-2 text-sm text-gray-400">
+  <a href="{{ url_for('dashboard.index') }}" class="hover:text-white">Dashboard</a>
+  <span>/</span>
+  <a href="{{ url_for('presentations.list') }}" class="hover:text-white">Presentations</a>
+  <span>/</span>
+  <span class="text-white">Create New</span>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+  <div class="mb-7">
+    <h2 class="text-2xl font-bold text-white">Create AI Presentation</h2>
+    <p class="text-gray-400 text-sm mt-1">Describe your topic and our AI will build a full professional deck.</p>
+  </div>
+
+  <form method="POST" id="createForm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <!-- Left: Main inputs -->
+      <div class="lg:col-span-2 space-y-5">
+
+        <!-- Topic input -->
+        <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6">
+          <label class="block text-sm font-semibold text-white mb-3">
+            What is your presentation about?
+            <span class="text-red-400">*</span>
+          </label>
+          <textarea name="topic" required rows="4" maxlength="1000"
+                    placeholder="e.g. Q3 2024 Sales Performance Review — include key wins, pipeline growth, regional breakdown, and Q4 targets for the executive team"
+                    class="input-field w-full resize-none text-sm leading-relaxed"
+                    id="topicInput"></textarea>
+          <div class="flex items-center justify-between mt-2">
+            <p class="text-xs text-gray-500">Be descriptive — the more detail you provide, the better the AI output.</p>
+            <span class="text-xs text-gray-600" id="charCount">0 / 1000</span>
+          </div>
+        </div>
+
+        <!-- Category + Slides -->
+        <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6">
+          <div class="grid grid-cols-2 gap-5">
+            <div>
+              <label class="block text-sm font-semibold text-white mb-2">Category</label>
+              <select name="category" class="input-field w-full">
+                {% for cat in categories %}
+                <option value="{{ cat }}" {% if cat == 'Business' %}selected{% endif %}>{{ cat }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-white mb-2">Number of Slides</label>
+              {% set plan = current_user.plan %}
+              {% set max_slides = plan.max_slides if plan else 5 %}
+              <input type="number" name="num_slides" value="8" min="3" max="{{ max_slides }}"
+                     class="input-field w-full"/>
+              <p class="text-xs text-gray-500 mt-1">Max {{ max_slides }} on your plan</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Template selection -->
+        <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6">
+          <label class="block text-sm font-semibold text-white mb-4">Choose a Template</label>
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-3" id="templateGrid">
+            {% for tmpl in templates %}
+            <label class="template-card cursor-pointer">
+              <input type="radio" name="template_id" value="{{ tmpl.id }}"
+                     class="sr-only" {% if loop.first %}checked{% endif %}/>
+              <div class="template-preview rounded-xl overflow-hidden border-2 border-transparent hover:border-brand-500 transition-all p-0.5">
+                <!-- Color swatch -->
+                <div class="h-16 rounded-lg flex items-center justify-center text-2xl"
+                     style="background: linear-gradient(135deg, {{ tmpl.primary }}, {{ tmpl.secondary }})">
+                  {{ tmpl.icon }}
+                </div>
+                <div class="pt-2 pb-1 px-1">
+                  <p class="text-xs font-semibold text-white truncate">{{ tmpl.name }}</p>
+                  <p class="text-xs text-gray-500">{{ tmpl.category }}</p>
+                </div>
+              </div>
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: AI info + submit -->
+      <div class="space-y-5">
+        <!-- AI provider status -->
+        {% set ai = current_user.get_active_ai_setting() %}
+        <div class="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+          <p class="text-sm font-semibold text-white mb-3">AI Provider</p>
+          {% if ai %}
+          <div class="flex items-center gap-3 p-3 bg-green-500/10 border border-green-500/20 rounded-xl">
+            <div class="w-8 h-8 rounded-lg bg-green-500/20 flex items-center justify-center text-green-400">✓</div>
+            <div>
+              <p class="text-sm font-medium text-green-300">{{ ai.provider.title() }}</p>
+              <p class="text-xs text-gray-400">{{ ai.model }}</p>
+            </div>
+          </div>
+          {% else %}
+          <div class="flex items-center gap-3 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl">
+            <div class="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center text-amber-400">⚠</div>
+            <div>
+              <p class="text-sm font-medium text-amber-300">Not configured</p>
+              <a href="{{ url_for('settings.index') }}" class="text-xs text-brand-400 hover:underline">Set up now →</a>
+            </div>
+          </div>
+          {% endif %}
+          <a href="{{ url_for('settings.index') }}" class="text-xs text-gray-500 hover:text-brand-400 mt-2 block">Change AI provider</a>
+        </div>
+
+        <!-- Plan limits -->
+        <div class="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+          <p class="text-sm font-semibold text-white mb-3">Your Plan</p>
+          {% set plan = current_user.plan %}
+          <div class="space-y-2 text-xs text-gray-400">
+            <div class="flex justify-between">
+              <span>Plan</span>
+              <span class="text-white font-medium">{{ current_user.get_plan_name() }}</span>
+            </div>
+            <div class="flex justify-between">
+              <span>Remaining this month</span>
+              <span class="text-white font-medium">
+                {% set rem = current_user.get_ppts_remaining() %}
+                {{ 'Unlimited' if rem == -1 else rem }}
+              </span>
+            </div>
+            <div class="flex justify-between">
+              <span>Max slides</span>
+              <span class="text-white font-medium">{{ plan.max_slides if plan else 5 }}</span>
+            </div>
+          </div>
+          {% if current_user.get_plan_name() == 'Free' %}
+          <a href="{{ url_for('plans.index') }}" class="mt-3 block text-center text-xs text-brand-400 hover:underline">
+            Upgrade for more →
+          </a>
+          {% endif %}
+        </div>
+
+        <!-- What AI will do -->
+        <div class="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+          <p class="text-sm font-semibold text-white mb-3">What the AI creates</p>
+          <ul class="space-y-2 text-xs text-gray-400">
+            <li class="flex items-start gap-2"><span class="text-green-400 mt-0.5">✓</span> Structured narrative flow</li>
+            <li class="flex items-start gap-2"><span class="text-green-400 mt-0.5">✓</span> Industry-standard layouts</li>
+            <li class="flex items-start gap-2"><span class="text-green-400 mt-0.5">✓</span> Auto-inserted charts & graphs</li>
+            <li class="flex items-start gap-2"><span class="text-green-400 mt-0.5">✓</span> Slide transitions & animations</li>
+            <li class="flex items-start gap-2"><span class="text-green-400 mt-0.5">✓</span> Speaker notes per slide</li>
+            <li class="flex items-start gap-2"><span class="text-green-400 mt-0.5">✓</span> Ready-to-download .pptx</li>
+          </ul>
+        </div>
+
+        <!-- Submit -->
+        <button type="submit" id="generateBtn"
+                class="btn-primary w-full py-4 text-base font-bold shadow-xl shadow-brand-900/50"
+                {% if not ai %}disabled{% endif %}>
+          <span id="btnText">⚡ Generate Presentation</span>
+        </button>
+        {% if not ai %}
+        <p class="text-xs text-center text-amber-400">Configure an AI provider first.</p>
+        {% endif %}
+      </div>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const topicInput = document.getElementById('topicInput');
+const charCount = document.getElementById('charCount');
+const generateBtn = document.getElementById('generateBtn');
+const btnText = document.getElementById('btnText');
+const form = document.getElementById('createForm');
+
+topicInput.addEventListener('input', () => {
+  charCount.textContent = `${topicInput.value.length} / 1000`;
+});
+
+// Template radio highlight
+document.querySelectorAll('input[name="template_id"]').forEach(radio => {
+  radio.addEventListener('change', () => {
+    document.querySelectorAll('.template-preview').forEach(p => {
+      p.classList.remove('border-brand-500', '!border-brand-500');
+    });
+    radio.closest('.template-card').querySelector('.template-preview')
+         .classList.add('!border-brand-500');
+  });
+  // Init
+  if (radio.checked) {
+    radio.closest('.template-card').querySelector('.template-preview')
+         .classList.add('!border-brand-500');
+  }
+});
+
+form.addEventListener('submit', () => {
+  generateBtn.disabled = true;
+  btnText.innerHTML = `<span class="animate-spin inline-block mr-2">⏳</span> Generating with AI…`;
+});
+</script>
+{% endblock %}

@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block title %}My Presentations{% endblock %}
+
+{% block breadcrumb %}
+<nav class="flex items-center gap-2 text-sm text-gray-400">
+  <a href="{{ url_for('dashboard.index') }}" class="hover:text-white">Dashboard</a>
+  <span>/</span>
+  <span class="text-white">My Presentations</span>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h2 class="text-2xl font-bold text-white">My Presentations</h2>
+    <p class="text-gray-400 text-sm mt-1">{{ ppts.total }} presentation{{ 's' if ppts.total != 1 }} total</p>
+  </div>
+  <a href="{{ url_for('presentations.create') }}" class="btn-primary px-5 py-2.5">
+    + Create New
+  </a>
+</div>
+
+<!-- Search -->
+<form method="GET" class="mb-6">
+  <div class="relative max-w-sm">
+    <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+    <input type="text" name="q" value="{{ search }}" placeholder="Search presentations…"
+           class="input-field pl-9 w-full"/>
+  </div>
+</form>
+
+{% if ppts.items %}
+<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+  {% for ppt in ppts.items %}
+  <div class="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden hover:border-gray-700 transition-all group">
+    <!-- Card header -->
+    <div class="h-28 flex items-center justify-center text-5xl relative"
+         style="background: linear-gradient(135deg,
+           {{ {'corporate_blue':'#1565C0','dark_executive':'#212121','nature_fresh':'#2E7D32','creative_orange':'#E65100','tech_purple':'#4A148C','minimal_white':'#e5e7eb','ocean_teal':'#00695C','sunset_warm':'#BF360C','bold_red':'#B71C1C','navy_pro':'#1A237E'}.get(ppt.template_id, '#4f46e5') }},
+           {{ {'corporate_blue':'#42A5F5','dark_executive':'#424242','nature_fresh':'#66BB6A','creative_orange':'#FF9800','tech_purple':'#7B1FA2','minimal_white':'#9ca3af','ocean_teal':'#26A69A','sunset_warm':'#FF7043','bold_red':'#E53935','navy_pro':'#3949AB'}.get(ppt.template_id, '#7c3aed') }})">
+      📊
+      <div class="absolute top-2 right-2">
+        <span class="status-badge status-{{ ppt.status }}">{{ ppt.status }}</span>
+      </div>
+    </div>
+
+    <!-- Card body -->
+    <div class="p-5">
+      <h3 class="font-semibold text-white text-sm leading-tight mb-1 line-clamp-2">{{ ppt.title }}</h3>
+      <div class="flex items-center gap-3 text-xs text-gray-500 mt-2">
+        <span>{{ ppt.num_slides }} slides</span>
+        <span>·</span>
+        <span>{{ ppt.template_id.replace('_',' ').title() }}</span>
+        <span>·</span>
+        <span>{{ ppt.created_at.strftime('%b %d') }}</span>
+      </div>
+      {% if ppt.ai_provider %}
+      <div class="mt-2">
+        <span class="text-xs px-2 py-0.5 bg-brand-600/20 text-brand-400 rounded-full">{{ ppt.ai_provider.title() }}</span>
+      </div>
+      {% endif %}
+
+      <!-- Actions -->
+      <div class="flex items-center gap-2 mt-4">
+        <a href="{{ url_for('presentations.editor', ppt_id=ppt.id) }}"
+           class="flex-1 btn-secondary text-center text-xs py-2">
+          Edit
+        </a>
+
+        {% if ppt.status == 'ready' and ppt.file_path %}
+        <a href="{{ url_for('presentations.download', ppt_id=ppt.id) }}"
+           class="flex-1 btn-primary text-center text-xs py-2">
+          ⬇ Download
+        </a>
+        {% elif ppt.status in ['error', 'draft', 'generating'] %}
+        {# Quick-regenerate inline form for failed presentations #}
+        <form method="POST" action="{{ url_for('presentations.regenerate', ppt_id=ppt.id) }}"
+              onsubmit="this.querySelector('button').disabled=true; this.querySelector('button').textContent='⏳…'">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+          <input type="hidden" name="topic" value="{{ ppt.topic or ppt.title }}"/>
+          <input type="hidden" name="num_slides" value="{{ ppt.num_slides }}"/>
+          <input type="hidden" name="template_id" value="{{ ppt.template_id }}"/>
+          <button type="submit"
+                  class="flex-1 bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold px-3 py-2 rounded-lg transition-colors whitespace-nowrap">
+            🔄 Retry AI
+          </button>
+        </form>
+        {% endif %}
+
+        <form method="POST" action="{{ url_for('presentations.delete', ppt_id=ppt.id) }}"
+              onsubmit="return confirm('Delete \'{{ ppt.title[:30] }}\'?')">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+          <button type="submit"
+                  class="p-2 text-gray-600 hover:text-red-400 hover:bg-gray-800 rounded-lg transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Pagination -->
+{% if ppts.pages > 1 %}
+<div class="flex items-center justify-center gap-2 mt-8">
+  {% if ppts.has_prev %}
+  <a href="{{ url_for('presentations.list', page=ppts.prev_num, q=search) }}" class="btn-secondary px-4 py-2 text-sm">← Prev</a>
+  {% endif %}
+  <span class="text-sm text-gray-400">Page {{ ppts.page }} of {{ ppts.pages }}</span>
+  {% if ppts.has_next %}
+  <a href="{{ url_for('presentations.list', page=ppts.next_num, q=search) }}" class="btn-secondary px-4 py-2 text-sm">Next →</a>
+  {% endif %}
+</div>
+{% endif %}
+
+{% else %}
+<div class="text-center py-20">
+  <div class="text-6xl mb-4">🎯</div>
+  <h3 class="text-xl font-semibold text-white mb-2">
+    {% if search %}No results for "{{ search }}"{% else %}No presentations yet{% endif %}
+  </h3>
+  <p class="text-gray-400 text-sm mb-6">
+    {% if search %}Try a different search term.{% else %}Create your first AI-powered presentation in seconds.{% endif %}
+  </p>
+  {% if not search %}
+  <a href="{{ url_for('presentations.create') }}" class="btn-primary px-6 py-3">Create Presentation</a>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

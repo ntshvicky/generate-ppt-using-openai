@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% block title %}Plans & Billing{% endblock %}
+
+{% block breadcrumb %}
+<nav class="flex items-center gap-2 text-sm text-gray-400">
+  <a href="{{ url_for('dashboard.index') }}" class="hover:text-white">Dashboard</a>
+  <span>/</span>
+  <span class="text-white">Plans & Billing</span>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto">
+  <div class="text-center mb-10">
+    <h2 class="text-3xl font-bold text-white mb-3">Choose Your Plan</h2>
+    <p class="text-gray-400">Scale from free experiments to unlimited enterprise presentations.</p>
+    {% if current_user.plan %}
+    <div class="inline-flex items-center gap-2 mt-3 px-4 py-1.5 bg-brand-600/20 border border-brand-600/30 text-brand-300 text-sm rounded-full">
+      <span class="w-2 h-2 bg-brand-400 rounded-full"></span>
+      Currently on <strong class="ml-1">{{ current_user.get_plan_name() }}</strong> plan
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+    {% for plan in plans %}
+    {% set is_current = current_user.plan_id == plan.id %}
+    {% set is_popular = plan.slug == 'pro' %}
+    <div class="relative bg-gray-900 border rounded-2xl p-7 flex flex-col
+                {% if is_popular %}border-brand-500 shadow-2xl shadow-brand-900/40 scale-105
+                {% elif is_current %}border-green-500/50
+                {% else %}border-gray-800{% endif %}">
+
+      {% if is_popular %}
+      <div class="absolute -top-3.5 left-1/2 -translate-x-1/2">
+        <span class="bg-brand-600 text-white text-xs font-bold px-4 py-1.5 rounded-full shadow">MOST POPULAR</span>
+      </div>
+      {% endif %}
+
+      {% if is_current %}
+      <div class="absolute -top-3.5 left-1/2 -translate-x-1/2">
+        <span class="bg-green-600 text-white text-xs font-bold px-4 py-1.5 rounded-full shadow">CURRENT PLAN</span>
+      </div>
+      {% endif %}
+
+      <!-- Plan header -->
+      <div class="mb-6">
+        <div class="text-2xl mb-2">
+          {% if plan.slug == 'free' %}🆓
+          {% elif plan.slug == 'pro' %}⚡
+          {% else %}🏢{% endif %}
+        </div>
+        <h3 class="text-xl font-bold text-white">{{ plan.name }}</h3>
+        <div class="flex items-end gap-1 mt-3">
+          <span class="text-4xl font-black text-white">${{ plan.price | int }}</span>
+          {% if plan.price > 0 %}
+          <span class="text-gray-400 text-sm mb-1">/month</span>
+          {% else %}
+          <span class="text-gray-400 text-sm mb-1">forever</span>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Features -->
+      <ul class="space-y-3 flex-1 mb-7">
+        {% set features = plan.features or {} %}
+
+        <li class="flex items-start gap-2.5 text-sm">
+          <span class="text-green-400 mt-0.5 shrink-0">✓</span>
+          <span class="text-gray-300">
+            {% if plan.ppts_per_month == -1 %}
+              <strong class="text-white">Unlimited</strong> presentations/month
+            {% else %}
+              <strong class="text-white">{{ plan.ppts_per_month }}</strong> presentations/month
+            {% endif %}
+          </span>
+        </li>
+
+        <li class="flex items-start gap-2.5 text-sm">
+          <span class="text-green-400 mt-0.5 shrink-0">✓</span>
+          <span class="text-gray-300">Up to <strong class="text-white">{{ plan.max_slides }}</strong> slides per deck</span>
+        </li>
+
+        {% if plan.slug == 'free' %}
+        <li class="flex items-start gap-2.5 text-sm">
+          <span class="text-green-400 mt-0.5 shrink-0">✓</span>
+          <span class="text-gray-300">5 professional templates</span>
+        </li>
+        <li class="flex items-start gap-2.5 text-sm">
+          <span class="text-green-400 mt-0.5 shrink-0">✓</span>
+          <span class="text-gray-300">Bring your own AI key</span>
+        </li>
+        <li class="flex items-start gap-2.5 text-sm">
+          <span class="text-gray-600 mt-0.5 shrink-0">✗</span>
+          <span class="text-gray-600">Video export (.mp4)</span>
+        </li>
+        <li class="flex items-start gap-2.5 text-sm">
+          <span class="text-gray-600 mt-0.5 shrink-0">✗</span>
+          <span class="text-gray-600">Priority AI generation</span>
+        </li>
+        {% elif plan.slug == 'pro' %}
+        <li class="flex items-start gap-2.5 text-sm">
+          <span class="text-green-400 mt-0.5 shrink-0">✓</span>
+          <span class="text-gray-300">All <strong class="text-white">10 templates</strong></span>
+        </li>
+        <li class="flex items-start gap-2.5 text-sm">
+          <span class="text-green-400 mt-0.5 shrink-0">✓</span>
+          <span class="text-gray-300"><strong class="text-white">Video export</strong> (.mp4)</span>
+        </li>
+        <li class="flex items-start gap-2.5 text-sm">
+          <span class="text-green-400 mt-0.5 shrink-0">✓</span>
+          <span class="text-gray-300">Charts, animations & speaker notes</span>
+        </li>
+        <li class="flex items-start gap-2.5 text-sm">
+          <span class="text-green-400 mt-0.5 shrink-0">✓</span>
+          <span class="text-gray-300">Priority AI generation</span>
+        </li>
+        {% else %}
+        <li class="flex items-start gap-2.5 text-sm">
+          <span class="text-green-400 mt-0.5 shrink-0">✓</span>
+          <span class="text-gray-300">All <strong class="text-white">10 templates</strong></span>
+        </li>
+        <li class="flex items-start gap-2.5 text-sm">
+          <span class="text-green-400 mt-0.5 shrink-0">✓</span>
+          <span class="text-gray-300"><strong class="text-white">Unlimited</strong> video exports</span>
+        </li>
+        <li class="flex items-start gap-2.5 text-sm">
+          <span class="text-green-400 mt-0.5 shrink-0">✓</span>
+          <span class="text-gray-300">Custom branding support</span>
+        </li>
+        <li class="flex items-start gap-2.5 text-sm">
+          <span class="text-green-400 mt-0.5 shrink-0">✓</span>
+          <span class="text-gray-300">Dedicated priority support</span>
+        </li>
+        {% endif %}
+      </ul>
+
+      <!-- CTA -->
+      {% if is_current %}
+      <button disabled class="w-full py-3 rounded-xl text-sm font-semibold bg-gray-700 text-gray-400 cursor-not-allowed">
+        Current Plan
+      </button>
+      {% else %}
+      <form method="POST" action="{{ url_for('plans.upgrade', plan_id=plan.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <button type="submit"
+                class="w-full py-3 rounded-xl text-sm font-semibold transition-colors
+                       {% if is_popular %}btn-primary{% else %}btn-secondary{% endif %}">
+          {% if plan.price == 0 %}Switch to Free
+          {% elif current_user.plan and current_user.plan.price > plan.price %}Downgrade
+          {% else %}Upgrade to {{ plan.name }}{% endif %}
+        </button>
+      </form>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+
+  <p class="text-center text-xs text-gray-600 mt-8">
+    Payments are simulated — no real charges. In production, integrate Stripe for billing.
+  </p>
+</div>
+{% endblock %}

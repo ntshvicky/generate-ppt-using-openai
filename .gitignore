@@ -1,2 +1,42 @@
+# Environment
 .env
+env/
+venv/
+.venv/
+
+# Python
 __pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# Generated presentation files
+app/static/generated/*.pptx
+app/static/generated/*.mp4
+generated_ppts/
+output/
+
+# Test / scratch files at root
+test*.py
+app copy.py
+ashutosh.py
+ex2.py
+
+# Flask
+instance/
+.flask_session/
+
+# Database
+*.db
+*.sqlite
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

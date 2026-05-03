@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+{% block title %}AI Settings{% endblock %}
+
+{% block breadcrumb %}
+<nav class="flex items-center gap-2 text-sm text-gray-400">
+  <a href="{{ url_for('dashboard.index') }}" class="hover:text-white">Dashboard</a>
+  <span>/</span>
+  <span class="text-white">AI Settings</span>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto">
+  <div class="mb-7">
+    <h2 class="text-2xl font-bold text-white">AI Provider Settings</h2>
+    <p class="text-gray-400 text-sm mt-1">Configure which AI model generates your presentations. Your keys are stored securely.</p>
+  </div>
+
+  <!-- Add / update provider form -->
+  <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6 mb-6">
+    <h3 class="text-base font-semibold text-white mb-5">Add or Update a Provider</h3>
+    <form method="POST" action="{{ url_for('settings.add_ai_setting') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-1.5">Provider</label>
+          <select name="provider" id="providerSelect" class="input-field w-full" onchange="updateModels(this.value)">
+            {% for p in providers %}
+            <option value="{{ p }}">{{ p.title() }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-1.5">Model</label>
+          <select name="model" id="modelSelect" class="input-field w-full">
+            {% for m in provider_models['openai'] %}
+            <option value="{{ m }}">{{ m }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-1.5">API Key</label>
+          <input type="password" name="api_key" required placeholder="sk-…" autocomplete="off"
+                 class="input-field w-full font-mono text-sm"/>
+        </div>
+      </div>
+
+      <!-- Provider help cards -->
+      <div class="grid grid-cols-3 gap-3 mb-5" id="providerHelp">
+        <div class="provider-hint p-3 rounded-xl border text-xs" data-provider="openai"
+             style="background:#10b981/10;border-color:#10b98140;">
+          <p class="font-semibold text-emerald-400 mb-1">OpenAI</p>
+          <p class="text-gray-400">Get key from <span class="text-brand-400">platform.openai.com</span></p>
+          <p class="text-gray-500 mt-1">Best for: gpt-4o, fast generation</p>
+        </div>
+        <div class="provider-hint p-3 rounded-xl border text-xs" data-provider="anthropic"
+             style="background:#8b5cf6/10;border-color:#8b5cf640;">
+          <p class="font-semibold text-purple-400 mb-1">Anthropic</p>
+          <p class="text-gray-400">Get key from <span class="text-brand-400">console.anthropic.com</span></p>
+          <p class="text-gray-500 mt-1">Best for: structured, analytical decks</p>
+        </div>
+        <div class="provider-hint p-3 rounded-xl border text-xs" data-provider="gemini"
+             style="background:#3b82f6/10;border-color:#3b82f640;">
+          <p class="font-semibold text-blue-400 mb-1">Gemini</p>
+          <p class="text-gray-400">Get key from <span class="text-brand-400">aistudio.google.com</span></p>
+          <p class="text-gray-500 mt-1">Best for: multilingual, creative decks</p>
+        </div>
+      </div>
+
+      <button type="submit" class="btn-primary px-6 py-2.5">Save Provider</button>
+    </form>
+  </div>
+
+  <!-- Existing providers -->
+  <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6">
+    <h3 class="text-base font-semibold text-white mb-5">Configured Providers</h3>
+
+    {% if ai_settings %}
+    <div class="space-y-3">
+      {% for setting in ai_settings %}
+      <div class="flex items-center gap-4 p-4 rounded-xl border
+                  {% if setting.is_active %}border-brand-500/50 bg-brand-600/5{% else %}border-gray-800 bg-gray-800/50{% endif %}">
+        <!-- Provider icon -->
+        <div class="w-10 h-10 rounded-xl flex items-center justify-center text-lg shrink-0
+                    {% if setting.provider == 'openai' %}bg-emerald-600/20
+                    {% elif setting.provider == 'anthropic' %}bg-purple-600/20
+                    {% else %}bg-blue-600/20{% endif %}">
+          {% if setting.provider == 'openai' %}🤖
+          {% elif setting.provider == 'anthropic' %}🧠
+          {% else %}✨{% endif %}
+        </div>
+
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2">
+            <p class="text-sm font-semibold text-white">{{ setting.provider.title() }}</p>
+            {% if setting.is_active %}
+            <span class="text-xs px-2 py-0.5 bg-brand-600/20 text-brand-400 rounded-full">Active</span>
+            {% endif %}
+          </div>
+          <p class="text-xs text-gray-400 mt-0.5">{{ setting.model }}</p>
+          <p class="text-xs text-gray-600">Key: {{ setting.api_key[:8] }}••••••••</p>
+        </div>
+
+        <div class="flex items-center gap-2 shrink-0">
+          {% if not setting.is_active %}
+          <form method="POST" action="{{ url_for('settings.activate_ai_setting', setting_id=setting.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+            <button type="submit" class="btn-secondary text-xs px-3 py-1.5">Set Active</button>
+          </form>
+          {% endif %}
+          <form method="POST" action="{{ url_for('settings.delete_ai_setting', setting_id=setting.id) }}"
+                onsubmit="return confirm('Remove this API key?')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+            <button type="submit" class="text-gray-600 hover:text-red-400 p-1.5 hover:bg-gray-700 rounded-lg transition-colors">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+              </svg>
+            </button>
+          </form>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center py-10">
+      <div class="text-4xl mb-3">🔑</div>
+      <p class="text-gray-400 text-sm">No AI providers configured yet.</p>
+      <p class="text-gray-500 text-xs mt-1">Add one above to start generating presentations.</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const PROVIDER_MODELS = {{ provider_models | tojson }};
+
+function updateModels(provider) {
+  const sel = document.getElementById('modelSelect');
+  sel.innerHTML = '';
+  (PROVIDER_MODELS[provider] || []).forEach(m => {
+    const opt = document.createElement('option');
+    opt.value = m; opt.textContent = m;
+    sel.appendChild(opt);
+  });
+}
+</script>
+{% endblock %}
