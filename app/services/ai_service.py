@@ -7,62 +7,150 @@ _OPENAI_JSON_MODE_MODELS = {
     'gpt-4-turbo', 'gpt-4', 'gpt-3.5-turbo',
 }
 
-SLIDE_GENERATION_PROMPT = """You are an expert presentation designer and business analyst.
-Generate a complete, professional PowerPoint presentation as a JSON object.
+SLIDE_GENERATION_PROMPT = """You are a McKinsey-level presentation strategist and data storyteller.
+Your job is to produce a high-impact, board-ready PowerPoint deck from the given topic.
 
-STRICT RULES:
-- Produce exactly {num_slides} slides total
-- Slide 1: type "title"  |  Last slide: type "conclusion"
-- Allowed types: title, content, chart, two_col, divider, conclusion
-- Add a "chart" slide when the topic involves data, trends, comparisons, or metrics
-- Bullet points: 3-5 concise, punchy lines per slide (empty list [] for title/divider)
-- Slide titles: max 8 words, no punctuation at end
-- Speaker notes: 2-3 sentences of presenter talking points
-- Chart data must contain realistic numbers relevant to the topic
+════════════════════════════════════════
+CONTENT QUALITY STANDARDS
+════════════════════════════════════════
 
-OUTPUT FORMAT — return ONLY the raw JSON object, no markdown fences, no extra text:
+BULLET POINTS — every bullet must be:
+  ✓ Specific and insight-driven (not generic)
+  ✓ Include a number, stat, or concrete example where possible
+  ✓ Written as a complete thought, 10-20 words
+  ✓ Begin with a strong verb or compelling fact
+  ✗ NEVER write: "This is important", "Key factor", "Consider the following"
+
+GOOD bullets:  "Global AI market will reach $1.8T by 2030, growing 38% CAGR"
+               "72% of enterprises report productivity gains above 30% after AI adoption"
+BAD bullets:   "AI is growing rapidly"   |   "Important trends to consider"
+
+TITLES — must be:
+  ✓ Insight headline (state the SO WHAT, not just the topic)
+  ✓ Max 8 words, no trailing punctuation
+  ✓ Action-oriented or claim-based
+
+GOOD titles: "AI Cuts Development Costs by Half"   |   "Three Forces Reshaping Healthcare"
+BAD titles:  "AI Overview"   |   "Current Situation"   |   "Introduction"
+
+SPEAKER NOTES — must include:
+  ✓ The key message to land with the audience
+  ✓ One supporting anecdote, case study, or data point
+  ✓ Transition sentence to the next slide
+  ✓ 3-5 sentences total
+
+CHART DATA — must be:
+  ✓ Realistic numbers grounded in the topic domain
+  ✓ At least 4-6 data points (labels + values)
+  ✓ Varied enough to show meaningful contrast
+  ✓ Properly unitised ($B, %, pts, ×, etc.)
+
+════════════════════════════════════════
+NARRATIVE STRUCTURE (follow this arc)
+════════════════════════════════════════
+
+Slide 1       → TITLE: Hook the audience with a bold claim or provocative question
+Slide 2       → CONTEXT: Set the scene — why this topic matters right now
+Slide 3-4     → PROBLEM / OPPORTUNITY: The core challenge or market gap with data
+Middle slides → INSIGHT BODY: Evidence, analysis, comparisons, breakdowns
+               Use "chart" for data-heavy points, "two_col" for compare/contrast,
+               "divider" before major new sections (every 3-4 slides)
+Second-to-last → RECOMMENDATIONS / ROADMAP: Clear, actionable steps
+Last slide    → CONCLUSION: 3-5 memorable takeaways; call to action
+
+════════════════════════════════════════
+SLIDE TYPE RULES
+════════════════════════════════════════
+
+"title"      Slide 1 only. Has subtitle. No bullets.
+"content"    Standard insight slide. 4-5 rich bullets with data.
+"chart"      Use when showing trends, comparisons, rankings, or market size.
+             MUST include realistic chart_data. Bullet points = key insights from chart.
+"two_col"    Use for compare/contrast: Before vs After, Pros vs Cons, Option A vs B.
+             Provide 3 bullets per column (6 bullets total).
+"divider"    Section break. Has subtitle. No bullets. Use before major topic shifts.
+"conclusion" Final slide. 4-5 strong, memorable takeaways. Clear call to action.
+
+════════════════════════════════════════
+STRICT REQUIREMENTS
+════════════════════════════════════════
+
+- Produce EXACTLY {num_slides} slides
+- Slide 1 must be type "title" with a compelling subtitle
+- Last slide must be type "conclusion"
+- At least 1 "chart" slide if {num_slides} >= 5
+- At least 1 "divider" if {num_slides} >= 7
+- At least 1 "two_col" if {num_slides} >= 6
+- Every "content" and "conclusion" slide: minimum 4 bullets
+- Every "chart" slide: minimum 2 insight bullets + complete chart_data
+- chart_type must be one of: "bar", "column", "line", "pie"
+- Choose chart_type wisely: bar/column for comparisons, line for trends, pie for composition
+
+════════════════════════════════════════
+CATEGORY-SPECIFIC TONE
+════════════════════════════════════════
+
+Business / Finance / Consulting → formal, data-heavy, ROI-focused language
+Technology / AI / SaaS          → forward-looking, innovation-driven, metric-rich
+Healthcare / Research           → evidence-based, patient-outcome focused, cautious claims
+Marketing / Sales               → persuasive, benefit-led, customer-centric language
+Startup / Pitch                 → bold, vision-driven, market-size framing, investor lens
+Sustainability / ESG            → impact-focused, long-term thinking, measurable goals
+Education / HR                  → people-centred, skill-building, competency language
+
+════════════════════════════════════════
+OUTPUT — return ONLY valid raw JSON, no markdown, no preamble:
+════════════════════════════════════════
 
 {{
-  "presentation_title": "Full Presentation Title",
+  "presentation_title": "Bold, Specific Presentation Title (6-10 words)",
   "slides": [
     {{
       "slide_number": 1,
       "slide_type": "title",
-      "title": "Short Punchy Title",
-      "subtitle": "Supporting subtitle line",
+      "title": "Punchy 5-7 Word Hook Title",
+      "subtitle": "One sentence that frames the narrative and stakes",
       "bullet_points": [],
       "include_chart": false,
       "chart_type": null,
       "chart_data": null,
-      "speaker_notes": "Welcome the audience and set context."
+      "speaker_notes": "Open with a striking fact or question. State what the audience will leave knowing. Transition: 'Let me start by setting the stage...'"
     }},
     {{
       "slide_number": 2,
       "slide_type": "content",
-      "title": "Key Insight or Section Name",
+      "title": "Why This Moment Is Different",
       "subtitle": null,
-      "bullet_points": ["Point one", "Point two", "Point three"],
+      "bullet_points": [
+        "Global market reached $847B in 2024, up 34% from prior year — fastest growth in a decade",
+        "Regulatory tailwinds: 60+ countries now mandate adoption, creating a $200B compliance market",
+        "Workforce readiness gap: only 12% of employees have skills needed for next-gen operations",
+        "Early movers capture 3× more market share than late adopters (McKinsey, 2024)"
+      ],
       "include_chart": false,
       "chart_type": null,
       "chart_data": null,
-      "speaker_notes": "Walk the audience through each point."
+      "speaker_notes": "Set urgency by anchoring to the macro moment. The 34% growth figure is the hook — it signals this is no longer optional. Acknowledge the skills gap as the hidden constraint. Transition: 'So what does the competitive landscape actually look like?'"
     }},
     {{
       "slide_number": 3,
       "slide_type": "chart",
-      "title": "Quantitative Slide Title",
+      "title": "Market Leaders Pulling Away Fast",
       "subtitle": null,
-      "bullet_points": ["Key insight from the data", "Second insight"],
+      "bullet_points": [
+        "Top-quartile companies outperform peers by 4.2× on revenue growth over 3 years",
+        "Gap between leaders and laggards widening at 18% per year — window is closing"
+      ],
       "include_chart": true,
       "chart_type": "bar",
       "chart_data": {{
-        "title": "Descriptive Chart Title",
-        "labels": ["Category A", "Category B", "Category C", "Category D"],
-        "values": [42, 78, 55, 91],
-        "series_name": "Metric ($M)",
-        "unit": "$M"
+        "title": "Revenue Growth Index by Adoption Tier (2021–2024, indexed to 100)",
+        "labels": ["Early Adopters", "Fast Followers", "Cautious Adopters", "Laggards"],
+        "values": [420, 280, 160, 100],
+        "series_name": "Growth Index",
+        "unit": "idx"
       }},
-      "speaker_notes": "Highlight the standout data point and its business impact."
+      "speaker_notes": "This chart tells the whole story: inaction is not neutral — it is falling behind. The 4.2× gap is the number executives remember. Use this to transition into the specific drivers behind the gap. Transition: 'What are these leaders actually doing differently?'"
     }}
   ]
 }}
@@ -141,11 +229,15 @@ def generate_with_openai(api_key: str, model: str, topic: str, num_slides: int, 
         model=model,
         messages=[
             {'role': 'system',
-             'content': 'You are a professional presentation designer. Respond with raw JSON only — no markdown, no explanation.'},
+             'content': (
+                 'You are a McKinsey-level presentation strategist. '
+                 'Respond with raw JSON only — no markdown fences, no explanation, no preamble. '
+                 'Every bullet must contain a specific stat, number, or concrete insight.'
+             )},
             {'role': 'user', 'content': prompt},
         ],
-        temperature=0.7,
-        max_tokens=4096,
+        temperature=0.75,
+        max_tokens=8192,
     )
 
     # json_object mode only for chat models that support it (not o-series reasoning models)
@@ -175,8 +267,12 @@ def generate_with_anthropic(api_key: str, model: str, topic: str, num_slides: in
     try:
         message = client.messages.create(
             model=model,
-            max_tokens=4096,
-            system='You are a professional presentation designer. Respond with raw JSON only — no markdown fences, no explanation.',
+            max_tokens=8192,
+            system=(
+                'You are a McKinsey-level presentation strategist. '
+                'Respond with raw JSON only — no markdown fences, no explanation, no preamble. '
+                'Every bullet must contain a specific stat, number, or concrete insight.'
+            ),
             messages=[{'role': 'user', 'content': prompt}],
         )
     except anthropic.AuthenticationError:
@@ -201,15 +297,19 @@ def generate_with_gemini(api_key: str, model: str, topic: str, num_slides: int, 
     prompt = SLIDE_GENERATION_PROMPT.format(topic=topic, num_slides=num_slides, category=category)
 
     generation_config = {
-        'temperature': 0.7,
-        'max_output_tokens': 4096,
+        'temperature': 0.75,
+        'max_output_tokens': 8192,
     }
 
     try:
         gen_model = genai.GenerativeModel(
             model_name=model,
             generation_config=generation_config,
-            system_instruction='You are a professional presentation designer. Respond with raw JSON only — no markdown fences, no explanation.',
+            system_instruction=(
+                'You are a McKinsey-level presentation strategist. '
+                'Respond with raw JSON only — no markdown fences, no explanation, no preamble. '
+                'Every bullet must contain a specific stat, number, or concrete insight.'
+            ),
         )
         response = gen_model.generate_content(prompt)
     except PermissionDenied:
